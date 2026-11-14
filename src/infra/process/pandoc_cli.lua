@@ -220,6 +220,9 @@ local function append_pptx_options(args, format, format_config, project_root, te
             format_config.reference_doc, project_root, template)
         table.insert(args, "--reference-doc=" .. ref_doc)
     end
+    if format_config.resource_path then
+        table.insert(args, "--resource-path=" .. format_config.resource_path)
+    end
     if format_config.slide_level then
         table.insert(args, "--slide-level=" .. tostring(format_config.slide_level))
     end

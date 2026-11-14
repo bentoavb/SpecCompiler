@@ -126,6 +126,10 @@ local function build_format_config(d, output, log)
         format_config.resource_path = d.config.output_dir or "build"
     end
 
+    if output.format == "pptx" and not format_config.resource_path then
+        format_config.resource_path = d.config.output_dir or "build"
+    end
+
     if d.config.bibliography and not format_config.bibliography then
         format_config.bibliography = d.config.bibliography
         log.debug("[EMIT] Merged bibliography: %s", d.config.bibliography)
