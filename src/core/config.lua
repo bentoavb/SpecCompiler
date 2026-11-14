@@ -160,6 +160,22 @@ function M.extract_metadata(meta)
         }
     end
 
+    -- PowerPoint/PPTX configuration. Pandoc uses a reference.pptx for slide
+    -- theme, master, and layout styling. Preserve format-specific options so
+    -- the emitter can pass them through to the PPTX writer.
+    local pptx_config = nil
+    if meta.pptx and type(meta.pptx) == "table" then
+        pptx_config = {}
+        for k, v in pairs(meta.pptx) do
+            local key = type(k) == "string" and k or utils.stringify(k)
+            if type(v) == "boolean" or type(v) == "number" then
+                pptx_config[key] = v
+            else
+                pptx_config[key] = utils.stringify(v)
+            end
+        end
+    end
+
     -- LaTeX configuration. Keep this generic so template postprocessors can
     -- receive model-specific keys such as uspsc_zip without changing core code.
     local latex_config = nil
@@ -223,6 +239,8 @@ function M.extract_metadata(meta)
         docx = docx_config,
         -- HTML5 configuration
         html5 = html5_config,
+        -- PowerPoint configuration
+        pptx = pptx_config,
         -- LaTeX configuration
         latex = latex_config,
         -- Bibliography/citation configuration

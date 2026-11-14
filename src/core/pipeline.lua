@@ -261,6 +261,7 @@ function M:execute(docs, opts)
         -- Multi-format output support
         outputs = pinfo.outputs,  -- Array of {format, path} from project.yaml
         html5 = pinfo.html5,  -- HTML5 config from project.yaml
+        pptx = pinfo.pptx,  -- PowerPoint configuration from project.yaml
         latex = pinfo.latex,  -- LaTeX config from project.yaml
         -- Bibliography/citation configuration
         bibliography = pinfo.bibliography,  -- Path to .bib file
@@ -275,6 +276,7 @@ function M:execute(docs, opts)
         reference_doc = reference_doc,
         docx = docx_info,
         html5 = pinfo.html5,
+        pptx = pinfo.pptx,
         latex = pinfo.latex,
         validation = self.validation,
         bibliography = pinfo.bibliography,

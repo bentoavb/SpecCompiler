@@ -136,6 +136,32 @@ local function resolve_project_path(path, project_root)
     return path
 end
 
+---Resolve a PPTX reference template from the project or selected model.
+---Project-local files take precedence; model-relative paths are useful for
+---templates shipped with a model (e.g. styles/default/reference.pptx).
+---@param reference_doc string|nil Reference path from pptx.reference_doc
+---@param project_root string|nil Project root
+---@param template string|nil Selected model name
+---@return string|nil resolved_path
+function M.resolve_pptx_reference_doc(reference_doc, project_root, template)
+    if not reference_doc then return nil end
+
+    local project_path = resolve_project_path(reference_doc, project_root)
+    if reference_doc:match("^/") or file_exists(project_path) then
+        return project_path
+    end
+
+    if template and template ~= "" then
+        local model_path = string.format("%s/models/%s/%s",
+            M.get_speccompiler_home(), template, reference_doc)
+        if file_exists(model_path) then
+            return model_path
+        end
+    end
+
+    return project_path
+end
+
 local function append_common_options(args, format_config)
     if format_config.number_sections then
         table.insert(args, "--number-sections")
@@ -182,6 +208,25 @@ local function append_docx_options(args, format, format_config, project_root)
     end
     if format_config.resource_path then
         table.insert(args, "--resource-path=" .. format_config.resource_path)
+    end
+end
+
+local function append_pptx_options(args, format, format_config, project_root, template)
+    if format ~= "pptx" then
+        return
+    end
+    if format_config.reference_doc then
+        local ref_doc = M.resolve_pptx_reference_doc(
+            format_config.reference_doc, project_root, template)
+        table.insert(args, "--reference-doc=" .. ref_doc)
+    end
+    if format_config.slide_level then
+        table.insert(args, "--slide-level=" .. tostring(format_config.slide_level))
+    end
+    if format_config.incremental == true then
+        table.insert(args, "--incremental")
+    elseif format_config.incremental == false then
+        table.insert(args, "--no-incremental")
     end
 end
 
@@ -350,6 +395,7 @@ function M.build_args(format, format_config, input_file, output_file, project_ro
     append_common_options(args, format_config)
     append_html_options(args, format, format_config)
     append_docx_options(args, format, format_config, project_root)
+    append_pptx_options(args, format, format_config, project_root, template)
     append_pdf_options(args, format, format_config)
     append_latex_options(args, format, format_config, project_root)
     append_citation_options(args, format_config, project_root, template)

@@ -98,6 +98,7 @@ COPY --from=build /usr/local/bin/deno /usr/local/bin/deno
 COPY src/ ./src/
 COPY models/default/ ./models/default/
 COPY models/sw_docs/ ./models/sw_docs/
+COPY models/presentation/ ./models/presentation/
 # tests/ ships too so model-overlay images (e.g. specc-abnt) can run their
 # model suite via /opt/speccompiler/tests/run.sh <model>-tests
 COPY tests/ ./tests/

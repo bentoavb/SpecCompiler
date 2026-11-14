@@ -1,0 +1,5 @@
+name: presentation
+description: >-
+  Presentation model
+extends: [default]
+requires: []

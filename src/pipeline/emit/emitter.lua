@@ -92,6 +92,7 @@ local function collect_documents(data, contexts, log, diagnostics)
         config.db_file = c.db_file
         config.outputs = c.outputs
         config.html5 = c.html5
+        config.pptx = c.pptx
         config.latex = c.latex
         config.docx = c.docx
         config.bibliography = c.bibliography
@@ -142,7 +143,7 @@ local function resolve_project_path(path, project_root)
     return (project_root or ".") .. "/" .. path
 end
 
-local function collect_output_dependencies(d)
+local function collect_output_dependencies(d, output_format)
     local deps = {}
     local project_root = d.config.project_root or "."
 
@@ -155,6 +156,15 @@ local function collect_output_dependencies(d)
     local uspsc_zip = resolve_project_path(latex.uspsc_zip, project_root)
     if uspsc_zip then
         deps[#deps + 1] = uspsc_zip
+    end
+
+    if output_format == "pptx" then
+        local pptx = d.config.pptx or {}
+        local pptx_reference = pandoc_cli.resolve_pptx_reference_doc(
+            pptx.reference_doc, project_root, d.config.template)
+        if pptx_reference then
+            deps[#deps + 1] = pptx_reference
+        end
     end
 
     return deps
@@ -211,7 +221,7 @@ local function prepare_output_task(d, output, json_dir, output_cache, log)
     -- edits, own content) is captured here by construction.
     local input_hash = hash_utils.sha1(filter_doc_json)
 
-    local deps = collect_output_dependencies(d)
+    local deps = collect_output_dependencies(d, output.format)
     if output.format == "docx" and d.reference_doc then
         deps[#deps + 1] = d.reference_doc
     end
