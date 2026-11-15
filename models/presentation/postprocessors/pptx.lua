@@ -7,6 +7,7 @@ local preset_loader = require("infra.format.pptx.preset_loader")
 local xml = require("infra.format.xml")
 local pandoc_cli = require("infra.process.pandoc_cli")
 local slide_numbers = require("models.presentation.postprocessors.slide_numbers")
+local slide_types = require("models.presentation.postprocessors.slide_types")
 local footer = require("models.presentation.postprocessors.footer")
 local pptx_pdf = require("models.presentation.postprocessors.pptx_pdf")
 
@@ -118,39 +119,37 @@ local function style_title(shape, rect, style)
     end
 end
 
-local function style_title_slide_heading(shape, style)
+local function style_cover_slide(shape, title_style, cover_style)
     local tx_body = xml.find_child(shape, "p:txBody")
-    local paragraph = tx_body and xml.find_children(tx_body, "a:p")[1]
-    if not paragraph then return end
+    if not tx_body then return end
+    local geometry = cover_style.geometry or {x = 760000, y = 1100000, cx = 7624000, cy = 2900000}
+    set_transform(shape, "shape", geometry)
 
-    local ppr = ensure_child(paragraph, "a:pPr", 1)
-    xml.set_attr(ppr, "algn", style.alignment or "ctr")
-    local spacing_after = xml.find_child(ppr, "a:spcAft")
-    if not spacing_after then
-        spacing_after = xml.node("a:spcAft")
-        local bullet = xml.find_child(ppr, "a:buNone")
-            or xml.find_child(ppr, "a:buChar")
-            or xml.find_child(ppr, "a:buAutoNum")
-        if bullet then
-            local position = #ppr.kids
-            for index, child in ipairs(ppr.kids) do
-                if child == bullet then position = index; break end
-            end
-            xml.insert_child(ppr, spacing_after, position)
-        else
-            xml.add_child(ppr, spacing_after)
+    for index, paragraph in ipairs(xml.find_children(tx_body, "a:p")) do
+        local ppr = ensure_child(paragraph, "a:pPr", 1)
+        xml.set_attr(ppr, "algn", "ctr")
+        local is_title = index == 1
+        if is_title then
+            local spacing_after = ensure_child(ppr, "a:spcAft")
+            xml.replace_child(spacing_after, "a:spcPts", xml.node("a:spcPts", {
+                val = tostring(title_style.title_slide_gap_after or 3000),
+            }))
         end
-    end
-    xml.replace_child(spacing_after, "a:spcPts", xml.node("a:spcPts", {
-        val = tostring(style.title_slide_gap_after or 3000),
-    }))
-    for _, run in ipairs(xml.find_children(paragraph, "a:r")) do
-        local rpr = ensure_child(run, "a:rPr", 1)
-        xml.set_attr(rpr, "sz", tostring(style.font_size or 3000))
-        xml.set_attr(rpr, "b", "1")
-        local fill = ensure_child(rpr, "a:solidFill")
-        local color = ensure_child(fill, "a:srgbClr")
-        xml.set_attr(color, "val", style.color or "000080")
+        for _, run in ipairs(xml.find_children(paragraph, "a:r")) do
+            local rpr = ensure_child(run, "a:rPr", 1)
+            local font_size = is_title and (cover_style.title_font_size or 4200)
+                or (index == 2 and (cover_style.subtitle_font_size or 2100)
+                    or (cover_style.metadata_font_size or 1500))
+            xml.set_attr(rpr, "sz", tostring(font_size))
+            if is_title then xml.set_attr(rpr, "b", "1") end
+            if index == 2 then xml.set_attr(rpr, "i", "1") end
+            local fill = ensure_child(rpr, "a:solidFill")
+            local color = ensure_child(fill, "a:srgbClr")
+            local hex = is_title and (cover_style.title_color or title_style.color or "000080")
+                or (index == 2 and (cover_style.subtitle_color or "334155")
+                    or (cover_style.metadata_color or "475569"))
+            xml.set_attr(color, "val", hex)
+        end
     end
 end
 
@@ -197,6 +196,7 @@ function M.process_slide(content, config, log)
     local layout = pptx.content_layout or {}
     local body_style = pptx.body or {}
     local title_style = pptx.title or {}
+    local cover_style = pptx.cover_slide or {}
     local body_shape
     local title_shape
     local title_slide_heading
@@ -229,7 +229,7 @@ function M.process_slide(content, config, log)
     -- shape and may also have an idx=1 body placeholder with several list
     -- paragraphs, so never style that body text as the slide title.
     if not title_shape and title_slide_heading then
-        style_title_slide_heading(title_slide_heading, title_style)
+        style_cover_slide(title_slide_heading, title_style, cover_style)
     end
 
     if body_shape then style_body_text(body_shape, body_style) end
@@ -468,6 +468,12 @@ function M.process_package(extract_dir, config, log)
     for _, slide_id in ipairs(slide_ids) do
         local target = targets[xml.get_attr(slide_id, "r:id")]
         if target then ordered_targets[#ordered_targets + 1] = target end
+    end
+
+    local typed_ok, typed_err = slide_types.apply(
+        extract_dir, ordered_targets, config.db_path, pptx, log)
+    if not typed_ok then
+        return false, typed_err or "Failed to apply type-specific PPTX slide layouts"
     end
 
     local footer_config = config.pptx and config.pptx.footer

@@ -41,6 +41,22 @@ return {
             alignment = "ctr",
             title_slide_gap_after = 3000,
         },
+        cover_slide = {
+            geometry = {x = 760000, y = 1100000, cx = 7624000, cy = 2900000},
+            title_font_size = 3800,
+            subtitle_font_size = 2100,
+            metadata_font_size = 1500,
+            title_color = "000080",
+            subtitle_color = "334155",
+            metadata_color = "475569",
+        },
+        title_slide = {
+            accent_color = "2563EB",
+            accent_width = 180000,
+            slide_height = 5143500,
+            title = {x = 850000, y = 1050000, cx = 7450000, cy = 1050000},
+            body = {x = 1050000, y = 2450000, cx = 7200000, cy = 2050000},
+        },
         slide_numbers = {
             enabled = true,
             x = 8534400,
