@@ -6,6 +6,7 @@ local archive = require("infra.format.pptx.postprocessor")
 local preset_loader = require("infra.format.pptx.preset_loader")
 local xml = require("infra.format.xml")
 local pandoc_cli = require("infra.process.pandoc_cli")
+local slide_numbers = require("models.presentation.postprocessors.slide_numbers")
 
 local M = {}
 
@@ -456,6 +457,20 @@ function M.process_package(extract_dir, config, log)
                 os.remove(extract_dir .. "/ppt/slides/_rels/" .. target .. ".rels")
             end
             write_file(content_types_path, xml.serialize(content_types_doc))
+        end
+    end
+
+    local number_style = pptx.slide_numbers or {}
+    if number_style.enabled ~= false then
+        slide_ids = xml.find_children(list, "p:sldId")
+        local ordered_targets = {}
+        for _, slide_id in ipairs(slide_ids) do
+            local target = targets[xml.get_attr(slide_id, "r:id")]
+            if target then ordered_targets[#ordered_targets + 1] = target end
+        end
+        local numbered, number_err = slide_numbers.apply(extract_dir, ordered_targets, number_style)
+        if not numbered then
+            return false, number_err or "Failed to add PPTX slide numbers"
         end
     end
     return true

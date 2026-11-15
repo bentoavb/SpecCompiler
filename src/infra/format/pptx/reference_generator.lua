@@ -63,6 +63,24 @@ local function get_placeholder(shape)
     return properties and xml.find_child(properties, "p:ph") or nil
 end
 
+local function remove_slide_number_placeholders(path)
+    local content = read_file(path)
+    if not content then return true end
+    local doc = xml.parse(content)
+    if not doc or not doc.root then return false end
+    local tree = xml.find_by_name(doc.root, "p:spTree")[1]
+    if not tree then return true end
+    local changed = false
+    for _, shape in ipairs(xml.find_children(tree, "p:sp")) do
+        local placeholder = get_placeholder(shape)
+        if placeholder and xml.get_attr(placeholder, "type") == "sldNum" then
+            xml.remove_child(tree, shape)
+            changed = true
+        end
+    end
+    return not changed or write_file(path, xml.serialize(doc))
+end
+
 local function patch_body_text_style(shape, body_style)
     local tx_body = xml.find_child(shape, "p:txBody")
     local list_style = tx_body and xml.find_child(tx_body, "a:lstStyle")
@@ -214,6 +232,26 @@ local function apply_preset(extract_dir, preset, log)
     local master_path = extract_dir .. "/ppt/slideMasters/slideMaster1.xml"
     local master_ok = patch_master(master_path, pptx.body, log)
     if not master_ok then return false, "Failed to update PPTX slide master" end
+
+    -- Use explicit, sequential slide-number shapes added after final slide
+    -- order is known; remove inherited master/layout number fields to prevent
+    -- duplicate or inconsistent numbers from the reference deck.
+    for _, folder in ipairs({"slideMasters", "slideLayouts"}) do
+        local dir = extract_dir .. "/ppt/" .. folder
+        local parts = uv.fs_scandir(dir)
+        if parts then
+            while true do
+                local name, kind = uv.fs_scandir_next(parts)
+                if not name then break end
+                if kind == "file" and name:match("%.xml$") then
+                    local ok = remove_slide_number_placeholders(dir .. "/" .. name)
+                    if not ok then
+                        return false, "Failed to remove inherited slide number placeholder: " .. name
+                    end
+                end
+            end
+        end
+    end
 
     local layout = pptx.content_layout
     if layout then

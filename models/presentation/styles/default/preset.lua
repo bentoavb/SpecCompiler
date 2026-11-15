@@ -41,6 +41,15 @@ return {
             alignment = "ctr",
             title_slide_gap_after = 3000,
         },
+        slide_numbers = {
+            enabled = true,
+            x = 8534400,
+            y = 4740000,
+            cx = 350000,
+            cy = 250000,
+            font_size = 1000,
+            color = "475569",
+        },
         content_layout = {
             body_index = 2,
             visual_index = 1,
