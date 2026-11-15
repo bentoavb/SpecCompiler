@@ -98,7 +98,8 @@ Other Linux distros: install the equivalents of the packages below, then run
 - `peg` — optional; built from source when absent
 - Default-on extras (disable with `WITH_PUML=0` / `WITH_LIBREOFFICE=0`):
   `default-jre-headless` for PlantUML floats; `libreoffice-writer`,
-  `libreoffice-math`, `python3-uno` for DOCX field update and PDF export
+  `libreoffice-impress`, `libreoffice-math`, `python3-uno` for Office field
+  updates and DOCX/PPTX PDF export
 
 To build the Docker image locally instead of pulling from GHCR:
 ```bash

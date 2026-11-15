@@ -41,14 +41,14 @@ if command -v apt-get >/dev/null 2>&1; then
   fc-cache -f
   [ "$WITH_PUML" = 1 ] && $SUDO apt-get install -y -qq default-jre-headless
   [ "$WITH_LIBREOFFICE" = 1 ] && $SUDO apt-get install -y -qq \
-    libreoffice-writer libreoffice-math python3-uno
+    libreoffice-writer libreoffice-impress libreoffice-math python3-uno
 else
   echo "[1/4] non-apt system — ensure these are present: pandoc (>= ${MIN_PANDOC}, distro"
   echo "      package with shared liblua), gcc, make, cmake, pkg-config, git, curl, unzip,"
   echo "      lua5.4 headers, sqlite3 dev, libzip dev (peg is optional — built from"
   echo "      source when absent), Poppler, Fontconfig, and exact Times New"
   echo "      Roman/Arial/Courier New fonts. For docx field update / PDF export also"
-  echo "      install LibreOffice Writer + Math and Python UNO. See the README."
+  echo "      install LibreOffice Writer + Impress + Math and Python UNO. See the README."
 fi
 
 # --- 2) pandoc present + new enough (links shared liblua5.4) ----------------

@@ -81,7 +81,7 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     pandoc \
     liblua5.4-0 libsqlite3-0 libzip4t64 \
-    python3 python3-uno libreoffice-writer libreoffice-math poppler-utils \
+    python3 python3-uno libreoffice-writer libreoffice-impress libreoffice-math poppler-utils \
     default-jre-headless graphviz fonts-dejavu-core \
     fontconfig ttf-mscorefonts-installer \
     libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \

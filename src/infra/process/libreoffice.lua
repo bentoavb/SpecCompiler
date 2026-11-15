@@ -320,4 +320,75 @@ function M.maybe_finalize(path, config, log)
     return result == true
 end
 
+local function absolute_path(path)
+    if path:match("^/") or path:match("^%a:[/\\]") then return path end
+    return (zip_utils.cwd() or ".") .. "/" .. path
+end
+
+local function file_uri(path)
+    path = path:gsub("\\", "/"):gsub(" ", "%%20")
+    if path:match("^%a:/") then return "file:///" .. path end
+    if path:sub(1, 1) == "/" then return "file://" .. path end
+    return "file:///" .. path
+end
+
+---Export a generated PPTX directly to PDF with headless LibreOffice.
+---Unlike DOCX field updates, this path needs no UNO-capable Python.
+---@param pptx_path string Path to a generated PPTX
+---@param pdf_path string Destination PDF path
+---@param log table Logger instance
+---@return boolean success
+function M.export_pptx_pdf(pptx_path, pdf_path, log)
+    local soffice = find_soffice()
+    if not soffice then
+        log.warn("[PPTX-PDF] LibreOffice not found on PATH; skipping PDF export for %s", pptx_path)
+        return false
+    end
+
+    local source = absolute_path(pptx_path)
+    local destination = absolute_path(pdf_path)
+    local temp_dir = make_temp_dir()
+    if not temp_dir then
+        log.warn("[PPTX-PDF] Could not create temporary directory; skipping PDF export for %s", pptx_path)
+        return false
+    end
+
+    local profile_dir = temp_dir .. "/lo-profile"
+    local output_dir = temp_dir .. "/output"
+    local mkdir_ok, mkdir_err = zip_utils.mkdir_p(output_dir)
+    if not mkdir_ok then
+        remove_tree(temp_dir)
+        log.warn("[PPTX-PDF] Could not create temporary output directory: %s", tostring(mkdir_err))
+        return false
+    end
+
+    local success, _, stderr, exit_code = task_runner.spawn_sync(soffice, {
+        "--headless",
+        "-env:UserInstallation=" .. file_uri(profile_dir),
+        "--convert-to", "pdf",
+        "--outdir", output_dir,
+        source,
+    }, {timeout = RUN_TIMEOUT_MS})
+
+    local filename = source:match("([^/\\]+)$") or "presentation.pptx"
+    local stem = filename:gsub("%.[Pp][Pp][Tt][Xx]$", "")
+    local converted_path = output_dir .. "/" .. stem .. ".pdf"
+    if success and file_exists(converted_path) then
+        ensure_parent_dir(destination)
+        success = replace_file(converted_path, destination)
+        if success then
+            log.info("[PPTX-PDF] Generated LibreOffice PDF: %s", destination)
+        else
+            log.warn("[PPTX-PDF] Could not copy generated PDF to %s", destination)
+        end
+    else
+        success = false
+        log.warn("[PPTX-PDF] LibreOffice conversion failed for %s (exit %s): %s",
+            source, tostring(exit_code), tostring(stderr))
+    end
+
+    remove_tree(temp_dir)
+    return success
+end
+
 return M

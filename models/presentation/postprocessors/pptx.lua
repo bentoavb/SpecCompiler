@@ -8,6 +8,7 @@ local xml = require("infra.format.xml")
 local pandoc_cli = require("infra.process.pandoc_cli")
 local slide_numbers = require("models.presentation.postprocessors.slide_numbers")
 local footer = require("models.presentation.postprocessors.footer")
+local pptx_pdf = require("models.presentation.postprocessors.pptx_pdf")
 
 local M = {}
 
@@ -487,6 +488,7 @@ end
 
 function M.finalize(paths, config, log)
     archive.finalize(paths, config, log, M)
+    pptx_pdf.finalize(paths, config, log)
 end
 
 return M

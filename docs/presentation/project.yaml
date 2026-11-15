@@ -21,6 +21,7 @@ outputs:
 
 pptx:
   preset: default
+  export_pdf: true
   footer:
     text: "SpecCompiler"
     date: true
