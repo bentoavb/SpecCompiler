@@ -169,6 +169,17 @@ local function collect_output_dependencies(d, output_format)
         if pptx_reference then
             deps[#deps + 1] = pptx_reference
         end
+        local filter_path = pandoc_cli.resolve_filter_path(
+            "pptx", "pptx", d.config.template, project_root)
+        if filter_path and task_runner.file_exists(filter_path) then
+            deps[#deps + 1] = filter_path
+        end
+        local home = pandoc_cli.get_speccompiler_home()
+        local postprocessor_path = string.format("%s/models/%s/postprocessors/pptx.lua",
+            home, d.config.template or "default")
+        if task_runner.file_exists(postprocessor_path) then
+            deps[#deps + 1] = postprocessor_path
+        end
     end
 
     return deps
@@ -410,7 +421,9 @@ local function finalize_postprocessors(outputs_by_format, contexts, log)
         for _, o in ipairs(outs) do
             if o and o.format == fmt and o.path then
                 local path = o.path:gsub("{spec_id}", spec_id)
-                if not path:match("^/") and not path:match("/") then
+                if not path:match("^/")
+                    and path ~= output_dir
+                    and path:sub(1, #output_dir + 1) ~= output_dir .. "/" then
                     path = output_dir .. "/" .. path
                 end
                 paths[#paths + 1] = path
@@ -438,6 +451,7 @@ local function finalize_postprocessors(outputs_by_format, contexts, log)
         finalize_config.bibliography = ctx.bibliography
         finalize_config.latex = ctx.latex
         finalize_config.docx = ctx.docx
+        finalize_config.pptx = ctx.pptx
         return finalize_config
     end
 
@@ -495,6 +509,21 @@ local function finalize_postprocessors(outputs_by_format, contexts, log)
                 log.info("[EMIT] Finalized html5 postprocessor (cached build)")
             else
                 log.warn("[EMIT] Finalize error for html5 (cached build): %s", tostring(err))
+            end
+        end
+    end
+
+    -- PPTX postprocessing can be idempotently re-applied to cached files. This
+    -- keeps slide-layout hooks current when only their implementation changes.
+    if not outputs_by_format.pptx and wants_format("pptx") then
+        local postprocessor = Writer.load_postprocessor(template, "pptx")
+        if postprocessor and postprocessor.finalize then
+            local paths = output_paths_for_format("pptx")
+            local ok, err = pcall(postprocessor.finalize, paths, build_finalize_config(), log)
+            if ok then
+                log.info("[EMIT] Finalized pptx postprocessor on cached output (%d files)", #paths)
+            else
+                log.warn("[EMIT] Finalize error for pptx (cached build): %s", tostring(err))
             end
         end
     end

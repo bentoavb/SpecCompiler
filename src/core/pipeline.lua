@@ -233,6 +233,17 @@ function M:execute(docs, opts)
     local contexts = {}
     local pinfo = self.project_info or {}
     local docx_info = pinfo.docx or {}
+    local pptx_info = {}
+    for key, value in pairs(pinfo.pptx or {}) do pptx_info[key] = value end
+
+    -- A generated PPTX preset is written to output_dir/reference.pptx by the
+    -- engine. Pass that path to Pandoc just like the DOCX reference document.
+    if not pptx_info.reference_doc and pptx_info.preset then
+        pptx_info.reference_doc = (pinfo.output_dir or "build") .. "/reference.pptx"
+    end
+    if pptx_info.reference_doc and not pptx_info.reference_doc:match("^/") then
+        pptx_info.reference_doc = (pinfo.project_root or ".") .. "/" .. pptx_info.reference_doc
+    end
 
     -- Resolve reference_doc path (make absolute if relative)
     local reference_doc = docx_info.reference_doc
@@ -261,7 +272,7 @@ function M:execute(docs, opts)
         -- Multi-format output support
         outputs = pinfo.outputs,  -- Array of {format, path} from project.yaml
         html5 = pinfo.html5,  -- HTML5 config from project.yaml
-        pptx = pinfo.pptx,  -- PowerPoint configuration from project.yaml
+        pptx = pptx_info,  -- PowerPoint configuration from project.yaml
         latex = pinfo.latex,  -- LaTeX config from project.yaml
         -- Bibliography/citation configuration
         bibliography = pinfo.bibliography,  -- Path to .bib file
@@ -276,7 +287,7 @@ function M:execute(docs, opts)
         reference_doc = reference_doc,
         docx = docx_info,
         html5 = pinfo.html5,
-        pptx = pinfo.pptx,
+        pptx = pptx_info,
         latex = pinfo.latex,
         validation = self.validation,
         bibliography = pinfo.bibliography,

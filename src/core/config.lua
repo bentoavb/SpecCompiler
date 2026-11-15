@@ -98,7 +98,7 @@ function M.extract_metadata(meta)
         end
     else
         -- Support individual format flags
-        local format_flags = {"gfm", "html5", "docx", "json"}
+        local format_flags = {"gfm", "html5", "docx", "pptx", "json"}
         for _, format in ipairs(format_flags) do
             if meta[format] == true then
                 table.insert(output_formats, format)

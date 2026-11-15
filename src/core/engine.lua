@@ -53,6 +53,28 @@ local function wants_docx_output(project_info)
     return false
 end
 
+---Check whether the current project invocation will emit PPTX output.
+---@param project_info table Project configuration from config.extract_metadata()
+---@return boolean
+local function wants_pptx_output(project_info)
+    if project_info.outputs and type(project_info.outputs) == "table" then
+        for _, output in ipairs(project_info.outputs) do
+            if output and output.format == "pptx" then return true end
+        end
+        return false
+    end
+    if project_info.output_formats and type(project_info.output_formats) == "table" then
+        for _, format in ipairs(project_info.output_formats) do
+            if format == "pptx" then return true end
+        end
+        return false
+    end
+    if project_info.output_format == "pptx" then
+        return true
+    end
+    return false
+end
+
 ---Check and rebuild reference.docx if preset has changed.
 ---@param db table Database handler
 ---@param project_info table Project configuration from config.extract_metadata()
@@ -119,6 +141,86 @@ local function check_reference_cache(db, project_info, log)
     else
         log.debug("reference.docx is up-to-date")
     end
+end
+
+---Generate and cache the PPTX reference deck for a configured model preset.
+---An explicit pptx.reference_doc is treated as a user-owned template and is
+---never overwritten.
+---@param db table Database handler
+---@param project_info table Project configuration
+---@param log table Logger instance
+local function check_pptx_reference_cache(db, project_info, log)
+    if not wants_pptx_output(project_info) then return end
+
+    local pptx_config = project_info.pptx or {}
+    if pptx_config.reference_doc then
+        log.debug("Explicit pptx.reference_doc supplied; skipping generated reference deck")
+        return
+    end
+    if not pptx_config.preset then
+        log.debug("No PPTX preset configured; skipping reference deck generation")
+        return
+    end
+
+    local speccompiler_home = os.getenv("SPECCOMPILER_HOME")
+        or require("infra.process.pandoc_cli").get_speccompiler_home()
+    local template = project_info.template or "default"
+    local preset_loader = require("infra.format.pptx.preset_loader")
+    local preset_paths, paths_err = preset_loader.resolve_chain_paths(
+        speccompiler_home, template, pptx_config.preset)
+    if not preset_paths then
+        log.warn("Could not resolve PPTX preset chain: %s", tostring(paths_err))
+        return
+    end
+    local preset, preset_err = preset_loader.load_with_extends(
+        speccompiler_home, template, pptx_config.preset)
+    if not preset then
+        log.warn("Could not load PPTX preset: %s", tostring(preset_err))
+        return
+    end
+
+    local extra_paths = {}
+    if preset.reference_doc then
+        local base_reference = preset.reference_doc
+        if base_reference:sub(1, 1) ~= "/" then
+            base_reference = string.format("%s/models/%s/%s",
+                speccompiler_home, template, base_reference)
+        end
+        extra_paths[#extra_paths + 1] = base_reference
+    end
+
+    local output_dir = project_info.output_dir or "build"
+    local reference_path = output_dir .. "/reference.pptx"
+    local cache_key = "pptx_preset_hash"
+    local cache = require("infra.reference_cache")
+    if cache.needs_rebuild(db, preset_paths, reference_path, cache_key, extra_paths) then
+        log.info("Rebuilding reference.pptx (PPTX preset changed)", {
+            preset = template .. "/" .. pptx_config.preset,
+            reference_path = reference_path,
+        })
+        local generator = require("infra.format.pptx.reference_generator")
+        local ok, err = generator.generate({
+            speccompiler_home = speccompiler_home,
+            template = template,
+            preset_name = pptx_config.preset,
+            output_path = reference_path,
+            log = function(message) log.debug(message) end,
+        })
+        if not ok then
+            log.error("Failed to rebuild reference.pptx: " .. tostring(err or "unknown"))
+            return
+        end
+        local hash_ok, hash_err = cache.update_hash(db, preset_paths, cache_key, extra_paths)
+        if not hash_ok then
+            log.error("Failed to update PPTX preset hash: " .. tostring(hash_err or "unknown"))
+            return
+        end
+    else
+        log.debug("reference.pptx is up-to-date")
+    end
+
+    project_info.pptx = pptx_config
+    project_info.pptx.reference_doc = reference_path
 end
 
 ---Reset all module-level caches from prior runs.
@@ -347,6 +449,7 @@ function M.run_project(project_info)
 
     local db = DbHandler.new({ db_file = project_info.db_file, log = log })
     check_reference_cache(db, project_info, log)
+    check_pptx_reference_cache(db, project_info, log)
     local data = DataManager.new(db, log)
 
     local pipeline = Pipeline.new({
