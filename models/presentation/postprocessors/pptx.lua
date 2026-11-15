@@ -233,18 +233,46 @@ function M.process_slide(content, config, log)
     end
 
     if body_shape then style_body_text(body_shape, body_style) end
+    if #visuals == 0 then return xml.serialize(doc) end
 
-    if not body_shape or #visuals == 0 then return xml.serialize(doc) end
     local body_x = (layout.body and layout.body.x) or 457200
     local body_y = (layout.body and layout.body.y) or 1076326
     local body_cx = (layout.body and layout.body.cx) or 8229600
+    local slide_bottom = (layout.slide_height or 5143500) - (layout.bottom_margin or 200000)
+
+    -- Figure-only slides have no body placeholder for the normal mixed-content
+    -- placement pass. Fit their single visual into the content area while
+    -- preserving its aspect ratio; this is especially important for standalone
+    -- PlantUML diagrams and evidence screenshots.
+    if not body_shape then
+        if #visuals == 1 then
+            local visual = visuals[1]
+            local transform = get_transform(visual.shape, visual.kind)
+            local extent = transform and xml.find_child(transform, "a:ext")
+            local old_cx = extent and tonumber(xml.get_attr(extent, "cx")) or 0
+            local old_cy = extent and tonumber(xml.get_attr(extent, "cy")) or 0
+            local available_cy = math.max(100000, slide_bottom - body_y)
+            if old_cx > 0 and old_cy > 0 then
+                local scale = math.min(body_cx / old_cx, available_cy / old_cy)
+                local cx = math.floor(old_cx * scale)
+                local cy = math.floor(old_cy * scale)
+                set_transform(visual.shape, visual.kind, {
+                    x = body_x + math.floor((body_cx - cx) / 2),
+                    y = body_y + math.floor((available_cy - cy) / 2),
+                    cx = cx,
+                    cy = cy,
+                })
+            end
+        end
+        return xml.serialize(doc)
+    end
+
     local characters_per_line = body_style.max_chars_per_line or 68
     local font_size = body_style.font_size or 1900
     local line_height = (font_size / 100) * 12700 * (body_style.line_height or 1.15)
     local lines = estimate_lines(body_shape, characters_per_line)
     local gap = layout.visual_gap or 180000
     local visual_y = body_y + math.ceil(lines * line_height) + gap
-    local slide_bottom = (layout.slide_height or 5143500) - (layout.bottom_margin or 200000)
 
     for _, visual in ipairs(visuals) do
         local transform = get_transform(visual.shape, visual.kind)
