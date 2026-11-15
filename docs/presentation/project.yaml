@@ -1,0 +1,23 @@
+# Minimal example project that emits a PowerPoint presentation.
+project:
+  code: DEMO
+  name: Presentation Example
+
+template: presentation
+
+logging:
+  level: info
+  format: console
+  color: true
+
+output_dir: build/
+
+doc_files:
+  - example.md
+
+outputs:
+  - format: pptx
+    path: pptx/{spec_id}.pptx
+
+pptx:
+  preset: default

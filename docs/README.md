@@ -1,6 +1,6 @@
 # SpecCompiler Documentation
 
-This directory contains four documentation sets. Each set is an independent SpecCompiler project with its own configuration.
+This directory contains four independent documentation projects and a five-slide presentation introducing SpecCompiler.
 
 ## `engineering_docs/` — Engineering specifications
 
@@ -56,3 +56,13 @@ This set defines the SQLite intermediate representation.
 ```bash
 specc build docs/specir/project.yaml
 ```
+
+## `presentation/` — Introducing SpecCompiler
+
+The presentation covers the SpecCompiler workflow, supported output formats, model extensibility, and component flow. It also demonstrates CommonSpec sections, a table, and a PlantUML component diagram.
+
+```bash
+specc build docs/presentation/project.yaml
+```
+
+The generated deck is written to `docs/presentation/build/pptx/example.pptx`.
