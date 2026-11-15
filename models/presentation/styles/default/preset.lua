@@ -39,6 +39,7 @@ return {
             color = "000080",
             bold = true,
             alignment = "ctr",
+            title_slide_gap_after = 3000,
         },
         content_layout = {
             body_index = 2,

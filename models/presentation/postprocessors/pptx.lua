@@ -122,6 +122,25 @@ local function style_title_slide_heading(shape, style)
 
     local ppr = ensure_child(paragraph, "a:pPr", 1)
     xml.set_attr(ppr, "algn", style.alignment or "ctr")
+    local spacing_after = xml.find_child(ppr, "a:spcAft")
+    if not spacing_after then
+        spacing_after = xml.node("a:spcAft")
+        local bullet = xml.find_child(ppr, "a:buNone")
+            or xml.find_child(ppr, "a:buChar")
+            or xml.find_child(ppr, "a:buAutoNum")
+        if bullet then
+            local position = #ppr.kids
+            for index, child in ipairs(ppr.kids) do
+                if child == bullet then position = index; break end
+            end
+            xml.insert_child(ppr, spacing_after, position)
+        else
+            xml.add_child(ppr, spacing_after)
+        end
+    end
+    xml.replace_child(spacing_after, "a:spcPts", xml.node("a:spcPts", {
+        val = tostring(style.title_slide_gap_after or 3000),
+    }))
     for _, run in ipairs(xml.find_children(paragraph, "a:r")) do
         local rpr = ensure_child(run, "a:rPr", 1)
         xml.set_attr(rpr, "sz", tostring(style.font_size or 3000))
