@@ -21,3 +21,7 @@ outputs:
 
 pptx:
   preset: default
+  footer:
+    text: "SpecCompiler"
+    date: true
+    date_format: "%A, %d %B %Y"

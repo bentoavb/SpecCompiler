@@ -7,6 +7,7 @@ local preset_loader = require("infra.format.pptx.preset_loader")
 local xml = require("infra.format.xml")
 local pandoc_cli = require("infra.process.pandoc_cli")
 local slide_numbers = require("models.presentation.postprocessors.slide_numbers")
+local footer = require("models.presentation.postprocessors.footer")
 
 local M = {}
 
@@ -461,13 +462,21 @@ function M.process_package(extract_dir, config, log)
     end
 
     local number_style = pptx.slide_numbers or {}
+    local ordered_targets = {}
+    slide_ids = xml.find_children(list, "p:sldId")
+    for _, slide_id in ipairs(slide_ids) do
+        local target = targets[xml.get_attr(slide_id, "r:id")]
+        if target then ordered_targets[#ordered_targets + 1] = target end
+    end
+
+    local footer_config = config.pptx and config.pptx.footer
+    if footer_config and (footer_config.text or footer_config.date) then
+        local footer_ok, footer_err = footer.apply(
+            extract_dir, ordered_targets, footer_config, pptx.footer_style or {})
+        if not footer_ok then return false, footer_err or "Failed to add PPTX footer" end
+    end
+
     if number_style.enabled ~= false then
-        slide_ids = xml.find_children(list, "p:sldId")
-        local ordered_targets = {}
-        for _, slide_id in ipairs(slide_ids) do
-            local target = targets[xml.get_attr(slide_id, "r:id")]
-            if target then ordered_targets[#ordered_targets + 1] = target end
-        end
         local numbered, number_err = slide_numbers.apply(extract_dir, ordered_targets, number_style)
         if not numbered then
             return false, number_err or "Failed to add PPTX slide numbers"

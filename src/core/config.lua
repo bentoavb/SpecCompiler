@@ -168,7 +168,20 @@ function M.extract_metadata(meta)
         pptx_config = {}
         for k, v in pairs(meta.pptx) do
             local key = type(k) == "string" and k or utils.stringify(k)
-            if type(v) == "boolean" or type(v) == "number" then
+            if key == "footer" and type(v) == "table" then
+                local footer = {}
+                for footer_key, footer_value in pairs(v) do
+                    local normalized_key = type(footer_key) == "string" and footer_key or utils.stringify(footer_key)
+                    if footer_value ~= nil then
+                        if normalized_key == "date" and type(footer_value) == "boolean" then
+                            footer[normalized_key] = footer_value
+                        else
+                            footer[normalized_key] = utils.stringify(footer_value)
+                        end
+                    end
+                end
+                pptx_config.footer = footer
+            elseif type(v) == "boolean" or type(v) == "number" then
                 pptx_config[key] = v
             else
                 pptx_config[key] = utils.stringify(v)

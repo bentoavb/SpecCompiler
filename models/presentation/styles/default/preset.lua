@@ -50,6 +50,15 @@ return {
             font_size = 1000,
             color = "475569",
         },
+        footer_style = {
+            x = 457200,
+            y = 4740000,
+            cx = 7600000,
+            cy = 250000,
+            font_size = 900,
+            color = "475569",
+            alignment = "l",
+        },
         content_layout = {
             body_index = 2,
             visual_index = 1,
