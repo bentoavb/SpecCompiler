@@ -10,6 +10,7 @@ local slide_numbers = require("models.presentation.postprocessors.slide_numbers"
 local slide_types = require("models.presentation.postprocessors.slide_types")
 local footer = require("models.presentation.postprocessors.footer")
 local pptx_pdf = require("models.presentation.postprocessors.pptx_pdf")
+local figure_size = require("models.presentation.shared.figure_size")
 
 local M = {}
 
@@ -87,6 +88,30 @@ local function shape_visual(shape)
     if shape.name == "pic" then return "pic" end
     if shape.name == "graphicFrame" then return "graphicFrame" end
     return nil
+end
+
+local function requested_size(shape, width_reference, height_reference)
+    local properties = xml.find_child(shape, "p:nvPicPr")
+    local non_visual = properties and xml.find_child(properties, "p:cNvPr")
+    local description = non_visual and xml.get_attr(non_visual, "descr")
+    if not description then return nil, nil end
+    local width, height = description:match("%[%[speccompiler%-size:([^,]+),([^%]]+)%]%]")
+    if not width then return nil, nil end
+    xml.set_attr(non_visual, "descr",
+        description:gsub("%[%[speccompiler%-size:[^%]]+%]%]%s*", "", 1))
+    return figure_size.to_emu(width, width_reference), figure_size.to_emu(height, height_reference)
+end
+
+local function fit_dimensions(old_cx, old_cy, max_cx, max_cy, width, height)
+    local scale = math.min(max_cx / old_cx, max_cy / old_cy)
+    if width then scale = math.min(scale, width / old_cx) end
+    if height then scale = math.min(scale, height / old_cy) end
+    return math.max(1, math.floor(old_cx * scale)), math.max(1, math.floor(old_cy * scale))
+end
+
+local function fit_picture(shape, old_cx, old_cy, max_cx, max_cy, width_reference, height_reference)
+    local width, height = requested_size(shape, width_reference, height_reference)
+    return fit_dimensions(old_cx, old_cy, max_cx, max_cy, width, height)
 end
 
 local function ensure_child(parent, name, position)
@@ -253,15 +278,52 @@ function M.process_slide(content, config, log)
             local old_cy = extent and tonumber(xml.get_attr(extent, "cy")) or 0
             local available_cy = math.max(100000, slide_bottom - body_y)
             if old_cx > 0 and old_cy > 0 then
-                local scale = math.min(body_cx / old_cx, available_cy / old_cy)
-                local cx = math.floor(old_cx * scale)
-                local cy = math.floor(old_cy * scale)
+                local cx, cy
+                if visual.kind == "pic" then
+                    cx, cy = fit_picture(visual.shape, old_cx, old_cy,
+                        body_cx, available_cy, body_cx, available_cy)
+                else
+                    local scale = math.min(body_cx / old_cx, available_cy / old_cy)
+                    cx, cy = math.floor(old_cx * scale), math.floor(old_cy * scale)
+                end
                 set_transform(visual.shape, visual.kind, {
                     x = body_x + math.floor((body_cx - cx) / 2),
                     y = body_y + math.floor((available_cy - cy) / 2),
                     cx = cx,
                     cy = cy,
                 })
+            elseif visual.kind == "pic" then
+                local width, height = requested_size(visual.shape, body_cx, available_cy)
+                if log and (width or height) then
+                    log.warn("[PPTX-POST] Cannot size a picture with missing or invalid dimensions")
+                end
+            end
+        else
+            for _, visual in ipairs(visuals) do
+                if visual.kind == "pic" then
+                    local transform = get_transform(visual.shape, visual.kind)
+                    local offset = transform and xml.find_child(transform, "a:off")
+                    local extent = transform and xml.find_child(transform, "a:ext")
+                    local old_cx = extent and tonumber(xml.get_attr(extent, "cx")) or 0
+                    local old_cy = extent and tonumber(xml.get_attr(extent, "cy")) or 0
+                    local available_cy = math.max(100000, slide_bottom - body_y)
+                    local width, height = requested_size(visual.shape, body_cx, available_cy)
+                    if (width or height) and old_cx > 0 and old_cy > 0 and offset then
+                        local cx, cy = fit_dimensions(old_cx, old_cy,
+                            body_cx, available_cy, width, height)
+                        local x = tonumber(xml.get_attr(offset, "x")) or body_x
+                        local y = tonumber(xml.get_attr(offset, "y")) or body_y
+                        set_transform(visual.shape, visual.kind, {
+                            x = math.max(body_x, math.min(body_x + body_cx - cx,
+                                x + math.floor((old_cx - cx) / 2))),
+                            y = math.max(body_y, math.min(slide_bottom - cy,
+                                y + math.floor((old_cy - cy) / 2))),
+                            cx = cx, cy = cy,
+                        })
+                    elseif log and (width or height) then
+                        log.warn("[PPTX-POST] Cannot size a picture with missing or invalid geometry")
+                    end
+                end
             end
         end
         return xml.serialize(doc)
@@ -276,21 +338,35 @@ function M.process_slide(content, config, log)
 
     for _, visual in ipairs(visuals) do
         local transform = get_transform(visual.shape, visual.kind)
-        local offset = transform and xml.find_child(transform, "a:off")
         local extent = transform and xml.find_child(transform, "a:ext")
         local old_cx = extent and tonumber(xml.get_attr(extent, "cx")) or body_cx
         local old_cy = extent and tonumber(xml.get_attr(extent, "cy")) or 1200000
         local cx = body_cx
         local cy
+        local available = math.max(0, slide_bottom - visual_y)
+        local x = body_x
         if visual.kind == "graphicFrame" then
             local rows = #xml.find_by_name(visual.shape, "a:tr")
             cy = math.max(500000, rows * 260000)
+            if available > 0 and cy > available then cy = available end
+        elseif old_cx > 0 and old_cy > 0 and available > 0 then
+            cx, cy = fit_picture(visual.shape, old_cx, old_cy, body_cx, available,
+                body_cx, math.max(100000, slide_bottom - body_y))
+            x = body_x + math.floor((body_cx - cx) / 2)
         else
+            if visual.kind == "pic" then
+                requested_size(visual.shape, body_cx, math.max(100000, slide_bottom - body_y))
+            end
             cy = old_cx > 0 and math.floor(old_cy * body_cx / old_cx) or old_cy
+            if log then
+                if available == 0 then
+                    log.warn("[PPTX-POST] No space remains for a visual below the slide text")
+                else
+                    log.warn("[PPTX-POST] Cannot size a picture with missing or invalid dimensions")
+                end
+            end
         end
-        local available = math.max(0, slide_bottom - visual_y)
-        if available > 0 and cy > available then cy = available end
-        set_transform(visual.shape, visual.kind, {x = body_x, y = visual_y, cx = cx, cy = cy})
+        set_transform(visual.shape, visual.kind, {x = x, y = visual_y, cx = cx, cy = cy})
         visual_y = visual_y + cy + gap
     end
 
