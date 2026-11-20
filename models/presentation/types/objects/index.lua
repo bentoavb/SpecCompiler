@@ -35,18 +35,20 @@ return {
             for number, row in ipairs(rows) do
                 local title = row.title_text or "Untitled"
                 local anchor = row.label or row.id
-                local display = ("%d. %s"):format(number, title)
+                local content = {pandoc.Str(("%d. "):format(number))}
                 if anchor and anchor ~= "" then
-                    local link = pandoc.Link({pandoc.Str(display)}, "#" .. anchor)
-                    table.insert(items, {pandoc.Plain({link})})
+                    table.insert(content, pandoc.Link({pandoc.Str(title)}, "#" .. anchor))
                 else
-                    table.insert(items, {pandoc.Plain({pandoc.Str(display)})})
+                    table.insert(content, pandoc.Str(title))
                 end
+                table.insert(items, pandoc.Para(content))
             end
 
             local blocks = {header}
             if #items > 0 then
-                table.insert(blocks, pandoc.BulletList(items))
+                for _, item in ipairs(items) do
+                    table.insert(blocks, item)
+                end
             else
                 table.insert(blocks, pandoc.Para({pandoc.Str("No TITLE sections found.")}))
             end
