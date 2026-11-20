@@ -126,6 +126,10 @@ local function style_title(shape, rect, style)
     set_transform(shape, "shape", rect)
     local tx_body = xml.find_child(shape, "p:txBody")
     if not tx_body then return end
+    local body_properties = ensure_child(tx_body, "a:bodyPr", 1)
+    xml.set_attr(body_properties, "anchor", "ctr")
+    xml.set_attr(body_properties, "tIns", "0")
+    xml.set_attr(body_properties, "bIns", "0")
     for _, paragraph in ipairs(xml.find_children(tx_body, "a:p")) do
         local ppr = ensure_child(paragraph, "a:pPr", 1)
         xml.set_attr(ppr, "algn", style.alignment or "ctr")
